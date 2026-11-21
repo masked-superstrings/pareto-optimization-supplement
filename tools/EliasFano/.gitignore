@@ -1,0 +1,6 @@
+# Build artifacts
+EliasFano
+*.o
+*.a
+2i_bench/build_index
+2i_bench/create_wand_data
