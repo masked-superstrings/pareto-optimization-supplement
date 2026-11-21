@@ -24,6 +24,10 @@ To install dependencies from conda and build localy provided software, use:
     ./prepare.sh
 ```
 
+Building the local software (`prepare.sh`) needs, besides conda, a C++17 compiler (g++, with OpenMP),
+`make`, zlib headers and Boost headers (for EliasFano; if they are not in the default include path,
+pass their location by `BOOST_INCLUDE=<path>`). Datasets are downloaded by `curl`.
+
 Next time, you only need to activate the conda environment with:
 ```bash
     conda activate ms-pareto-optimization
