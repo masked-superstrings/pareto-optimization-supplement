@@ -7,8 +7,6 @@ JELLYFISH_FLAGS = "-s 500M -t 1 -C"
 
 LOCAL_KMERCAMEL = f"{BASE_DIR}/kmercamel-pareto/kmercamel"
 KMER_COUNTER_MS_SCRIPT = f"{BASE_DIR}/tools/kmer_counter_ms.py"
-SUPERSTRING_SCRAMBLE_SCRIPT = f"{BASE_DIR}/tools/scramble_superstring.py"
-BLOSSOM5 = f"{BASE_DIR}/tools/blossom5/blossom5"
 
 rule compute_kmer_count_in_dataset_jellyfish:
     input:
