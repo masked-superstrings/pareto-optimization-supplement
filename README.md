@@ -19,7 +19,7 @@ In case of any questions, feel free to ask by an [email](mailto:janci@kam.mff.cu
 
 To install dependencies from conda and build localy provided software, use:
 ```bash
-    conda env create --name ms-pareto-optimization
+    conda env create -f environment.yml
     conda activate ms-pareto-optimization
     ./prepare.sh
 ```

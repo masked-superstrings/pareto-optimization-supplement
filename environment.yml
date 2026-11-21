@@ -1,0 +1,13 @@
+name: ms-pareto-optimization
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - geco3=1.0
+  - ggcat=2.0.0
+  - kmer-jellyfish=2.3.1  # bioconda's k-mer counter (conda-forge's 'jellyfish' is an unrelated Python library)
+  - kmercamel=2.2.0
+  - snakemake=9.22.0
+  - xz=5.8.1
+  - bzip2=1.0.8
