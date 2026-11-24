@@ -11,6 +11,7 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 VERIFY="python3 -I $DIR/verify_ms.py"
+SUBSTRINGS=""   # set to -s to also require that the input sequences (unitigs) are substrings of the result
 FAILED=0; PASSED=0
 
 pass(){ PASSED=$((PASSED + 1)); }
@@ -30,14 +31,16 @@ check(){ # fasta, options...
     local penalty=$(echo "$*" | grep -oE -- '-p [0-9]+' | cut -d' ' -f2)
     [ -z "$penalty" ] && { [ "$objective" = runs ] && penalty=7 || penalty=2; }
     local result
-    result=$($VERIFY "$fasta" "$out" "$k" $unidirectional 2>&1)
-    if [ $rc -ne 0 ] || ! echo "$result" | grep -q "ok=True" || grep -qE "ERROR|runtime error|Assertion" "$log"; then
-        fail "[$(basename "$fasta") $*] rc=$rc $result $(grep -m1 -E 'ERROR|runtime error|Assertion|Exception' "$log")"; return
+    result=$($VERIFY "$fasta" "$out" "$k" $unidirectional $SUBSTRINGS 2>&1)
+    local errors="ERROR|runtime error|Assertion"
+    [ -n "$SUBSTRINGS" ] && errors="$errors|Warning" # Unitigs never conflict
+    if [ $rc -ne 0 ] || ! echo "$result" | grep -q "ok=True" || grep -aqE "$errors" "$log"; then
+        fail "[$(basename "$fasta") $*] rc=$rc $result $(grep -a -m1 -E "$errors|Exception" "$log")"; return
     fi
     local length=$(echo "$result" | grep -oP '(?<=\|S\|=)\d+') runs=$(echo "$result" | grep -oP '(?<=runs=)\d+') zeros=$(echo "$result" | grep -oP '(?<=zeros=)\d+')
     local expected=$(( length + penalty * zeros ))
     [ "$objective" = runs ] && expected=$(( length + penalty * runs ))
-    local reported=$(grep -o "objective value: [0-9]*" "$log" | awk '{print $3}')
+    local reported=$(grep -ao "objective value: [0-9]*" "$log" | awk '{print $3}')
     [ "$reported" = "$expected" ] && pass || fail "[$(basename "$fasta") $*] reported objective $reported, recounted $expected"
 }
 
@@ -51,6 +54,27 @@ for mode in "" "-t $THREADS" "-m" "-m -t $THREADS"; do
             check "$WORK/$fasta.fa" $options $mode
         done
     done
+done
+
+echo "== Unitigs stay substrings of the result"
+SUBSTRINGS=-s
+for options in "-k 31 -O runs" "-k 31 -O zeros" "-k 31 -O runs -p 40" "-k 31 -O runs -t $THREADS" "-k 31 -O zeros -m -t $THREADS"; do
+    check "$WORK/unitigs_k31.fa" $options
+    check "$WORK/unitigs_mid_k31.fa" $options
+done
+for options in "-k 10 -O runs" "-k 10 -O zeros -t $THREADS" "-k 10 -O runs -p 300"; do check "$WORK/unitigs_k10.fa" $options; done
+for options in "-k 15 -O runs" "-k 15 -O zeros -m"; do check "$WORK/unitigs_k15_split.fa" $options; done
+for options in "-k 31 -O runs -u" "-k 31 -O zeros -u -t $THREADS"; do check "$WORK/unitigs_k31_u.fa" $options; done
+check "$WORK/unitigs_k63.fa" -k 63 -O runs
+SUBSTRINGS=""
+
+echo "== Keeping unitigs does not worsen the objective (vs. the same k-mers from a genome, at most 0.5 % worse)"
+for options in "-k 31 -O runs" "-k 31 -O zeros"; do
+    "$BIN" compute -a pareto $options -o "$WORK/genome.fa" "$WORK/mid.fa" > "$WORK/genome.log" 2>&1
+    "$BIN" compute -a pareto $options -o "$WORK/unitigs.fa" "$WORK/unitigs_mid_k31.fa" > "$WORK/unitigs.log" 2>&1
+    genome=$(grep -ao "objective value: [0-9]*" "$WORK/genome.log" | awk '{print $3}')
+    unitigs=$(grep -ao "objective value: [0-9]*" "$WORK/unitigs.log" | awk '{print $3}')
+    [ -n "$genome" ] && [ -n "$unitigs" ] && [ $((unitigs * 1000)) -le $((genome * 1005)) ] && pass || fail "objective on unitigs $unitigs vs genome $genome ($options)"
 done
 
 echo "== Input formats (N's, lowercase, gzip, stdin)"
@@ -88,7 +112,7 @@ echo "== Lower bounds do not exceed computed objectives"
 for objective in runs zeros; do
     bound=$("$BIN" lowerbound -k 31 -a pareto -O $objective "$WORK/mid.fa" 2>/dev/null)
     "$BIN" compute -k 31 -a pareto -O $objective -o "$WORK/lb.fa" "$WORK/mid.fa" > "$WORK/lb.log" 2>&1
-    value=$(grep -o "objective value: [0-9]*" "$WORK/lb.log" | awk '{print $3}')
+    value=$(grep -ao "objective value: [0-9]*" "$WORK/lb.log" | awk '{print $3}')
     [ -n "$bound" ] && [ -n "$value" ] && [ "$bound" -le "$value" ] && pass || fail "lower bound $bound vs objective $value ($objective)"
 done
 for options in "" "-O matchtig-count"; do

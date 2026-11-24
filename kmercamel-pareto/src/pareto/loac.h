@@ -100,6 +100,7 @@ class LeafOnlyAC {
     const size_k_max        MAX_BUDGET;             /// Every connection not passing through the root costs less
 
     const std::vector<kmer_t>&       kMers;
+    std::vector<kmer_t>              sequence_starts; /// Sorted (k + 1)-mers starting the input sequences, freed after phase 0
     FailureIndex<kmer_t, size_n_max> failureIndex;
 
     std::vector<size_n_max> next;                   /// Next leaf in a chain
@@ -173,6 +174,7 @@ class LeafOnlyAC {
         entry = context.buckets[context.top_bucket].back(); context.buckets[context.top_bucket].pop_back();
         return true;
     }
+    void phase_0();
     bool try_complete_leaf_phase_1(size_n_max leaf_to_complete);
     bool search(SearchContext &context, size_n_max origin, size_k_max budget, bool exact = false);
     void push_failure(SearchContext &context, size_k_max priority, size_k_max node_depth, size_n_max leaf, size_t log);
@@ -192,10 +194,10 @@ public:
         return size_k_max(max_cost + 1);
     }
 
-    LeafOnlyAC(const std::vector<kmer_t>& kmers, size_k_max k, bool use_complements, ParetoObjective objective, size_k_max penalty, const ParetoOptions &options) :
+    LeafOnlyAC(const std::vector<kmer_t>& kmers, std::vector<kmer_t>&& starts, size_k_max k, bool use_complements, ParetoObjective objective, size_k_max penalty, const ParetoOptions &options) :
         K(k), N(kmers.size()), COMPLEMENTS(use_complements), OBJECTIVE(objective), PENALTY(penalty),
         THREADS(std::max(1, options.threads)), USE_SKIP_TO(!options.low_memory), MAX_BUDGET(max_budget(k, objective, penalty)),
-        kMers(kmers), failureIndex(kMers, K, true, !options.low_memory, options.low_memory, THREADS) {};
+        kMers(kmers), sequence_starts(std::move(starts)), failureIndex(kMers, K, true, !options.low_memory, options.low_memory, THREADS) {};
 
     void compute_result();                  /// Runs the pareto optimization
     size_t print_result(std::ostream& of);  /// Prints the masked superstring, returns its objective value
@@ -209,6 +211,8 @@ inline void LeafOnlyAC<kmer_t, size_n_max, priority_t>::compute_result() {
     remaining_priorities.resize(N, 0);
     if (USE_SKIP_TO){ skip_to.resize(N); for (size_n_max i = 0; i < N; ++i) skip_to[i] = i + 1; skip_min.resize(N, 0); }
     contexts.resize(THREADS);
+
+    phase_0();
 
     /// Phase 1 -- connect leaves overlapping by k - 1 characters
     print_remaining_stats(N, MAX_BUDGET, 1, true);
@@ -225,6 +229,43 @@ inline void LeafOnlyAC<kmer_t, size_n_max, priority_t>::compute_result() {
     /// Phase 2 (and possibly 3) -- connect leaves via paths of increasing cost
     phase_2(uncompleted_leaves);
     std::cerr << std::endl; WriteLog("Finished computation of a masked superstring.");
+}
+
+/// Phase 0 -- chains are first grown from the starts of the input sequences in their direction: the first step goes to
+/// the stored next base, further ones are taken greedily as in phase 1. If the sequences are unitigs, an inner k-mer has
+/// a single successor and predecessor, so no chain starts or ends inside a unitig and every unitig stays whole
+/// (later phases only connect chain ends).
+template <typename kmer_t, typename size_n_max, typename priority_t>
+inline void LeafOnlyAC<kmer_t, size_n_max, priority_t>::phase_0() {
+    size_t conflicts = 0;
+    for (const kmer_t &start : sequence_starts){
+        size_n_max first = failureIndex.find_kmer(kmer_t(start >> 2));
+        size_n_max second = failureIndex.find_kmer(start); /// The index uses only the last K characters
+        if (first == INVALID_NODE || second == INVALID_NODE) throw std::logic_error("K-mer of a sequence start is missing");
+        /// Self-complementary k-mers have two leaves, the step may already exist from either of them
+        size_n_max leaf = INVALID_NODE;
+        bool followed = false;
+        for (size_n_max i = first; i < N && kMers[i] == kMers[first]; ++i){
+            if (next[i] == INVALID_NODE){ if (leaf == INVALID_NODE) leaf = i; }
+            else if (kMers[next[i]] == kMers[second]) followed = true;
+        }
+        if (followed) continue; /// Already followed from another sequence (or from the reverse complement)
+        if (leaf == INVALID_NODE){ ++conflicts; continue; }
+        kmer_t leaf_complement = COMPLEMENTS ? complement_kmer(leaf) : kmer_t(0);
+        bool connected = false;
+        for (size_n_max i = find_unused(second); i < N && kMers[i] == kMers[second]; i = find_unused(i + 1)){
+            if (!can_connect(leaf, leaf_complement, i)) continue;
+            connect_leaves(leaf, i, {});
+            connected = true;
+            break;
+        }
+        if (!connected){ ++conflicts; continue; }
+        for (leaf = next[leaf]; next[leaf] == INVALID_NODE && try_complete_leaf_phase_1(leaf); leaf = next[leaf]);
+    }
+    WriteLog("Finished phase 0 from " + std::to_string(sequence_starts.size()) + " sequence starts.");
+    if (conflicts > 0) WriteLog("Warning: " + std::to_string(conflicts) + " sequences could not be followed from their start, "
+                                "the input sequences are not unitigs (they share k-mers or branch).");
+    std::vector<kmer_t>().swap(sequence_starts);
 }
 
 template <typename kmer_t, typename size_n_max, typename priority_t>

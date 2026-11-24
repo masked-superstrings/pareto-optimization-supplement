@@ -21,6 +21,11 @@ Pareto optimization was implemented in fork of KmerCamel🐫, see [original READ
 
 ## Phases of the computation
 
+0. Chains of leaves start at the starts of the input sequences, in their direction: the first k-mer and the next base
+   of every sequence (between N's) are kept while reading, the first step goes to that base and further ones are greedy
+   as in phase 1. If the input sequences are unitigs (or their pieces), no chain starts or ends inside a unitig,
+   so every unitig (or its reverse complement) is a substring of the result. Other inputs (e.g. simplitigs) are
+   not guaranteed to stay whole; sequences that cannot be followed from their start are reported in a warning.
 1. Leaves (k-mers) are chained along overlaps of length k - 1.
 2. Iterative deepening -- in every iteration, each uncompleted leaf is searched for a connection cheaper than the current budget.
 3. When only a few leaves remain but many budgets are left (typical for large penalties), every remaining leaf is searched
@@ -33,5 +38,7 @@ Building: `make` (`make OMPFLAGS=` disables OpenMP and thus `-t`; on x86_64 the 
 
 `make pareto-test` checks on small inputs (generated from `data/spneumoniae.fa`) that the results represent the k-mer sets
 in all modes, that the reported objective is correct, that `-m` does not change the result, large penalties,
-input formats and rejection of invalid options. `make pareto-test-sanitize` runs the same with AddressSanitizer
-and UndefinedBehaviorSanitizer. Setting `REF_BIN=<binary>` also checks that the results are identical to another build.
+input formats, rejection of invalid options, and that unitigs (generated in the test) stay substrings of the result
+without worsening the objective. `make pareto-test-sanitize` runs the same with AddressSanitizer
+and UndefinedBehaviorSanitizer. Setting `REF_BIN=<binary>` also checks that the results are identical to another build (builds before phase 0 give
+different results for inputs with sequences longer than k).

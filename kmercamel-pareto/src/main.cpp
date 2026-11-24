@@ -145,7 +145,8 @@ int kmercamel(kh_wrapper_t wrapper, kmer_t kmer_type, std::string path, int k, i
     }
     /* Pareto optimization reads k-mers directly into a sorted vector. */
     else if (algorithm == ALG_PARETO) {
-        std::vector<kmer_t> kMerVec = ReadKMersSorted<kmer_t>(path, k, complements, pareto.threads);
+        std::vector<kmer_t> sequenceStarts;
+        std::vector<kmer_t> kMerVec = ReadKMersSorted<kmer_t>(path, k, complements, pareto.threads, lower_bound ? nullptr : &sequenceStarts);
         if (kMerVec.empty()) {
             std::cerr << "Path '" << path << "' contains no k-mers. Make sure that your file is a FASTA or gzipped FASTA." << std::endl;
             return usage_subcommand(lower_bound ? "lowerbound" : "compute");
@@ -154,7 +155,7 @@ int kmercamel(kh_wrapper_t wrapper, kmer_t kmer_type, std::string path, int k, i
         if (lower_bound) *of << LowerBoundPareto(std::move(kMerVec), k, complements, pareto.objective, pareto.penalty);
         else {
             WriteName(path, algorithm, k, false, !complements, *of);
-            if (!ParetoOptimization(std::move(kMerVec), *of, k, complements, pareto)) return 1;
+            if (!ParetoOptimization(std::move(kMerVec), std::move(sequenceStarts), *of, k, complements, pareto)) return 1;
         }
     }
     /* Handle hash table based algorithms separately so that they consume less memory. */

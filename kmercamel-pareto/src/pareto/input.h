@@ -61,8 +61,10 @@ void AddComplementsSorted(std::vector<kmer_t> &kMers, size_k_max k, int threads)
 /// Read distinct k-mers of a FASTA file into a sorted vector (canonical ones if complements is true).
 /// Occurrences are buffered and periodically sorted, deduplicated and merged, a small table of recently seen k-mers
 /// filters most repetitions (e.g. overlaps of unitigs). The result has capacity for the reverse complements.
+/// If sequence_starts is given, it gets the sorted distinct (k + 1)-mers starting the sequences (split at N's), in the
+/// orientation of the sequence: the first k-mer and the next base, which give the start and direction of a unitig.
 template <typename kmer_t>
-std::vector<kmer_t> ReadKMersSorted(std::string &path, int k, bool complements, int threads){
+std::vector<kmer_t> ReadKMersSorted(std::string &path, int k, bool complements, int threads, std::vector<kmer_t> *sequence_starts = nullptr){
     gzFile fp = OpenFile(path);
     kseq_t *seq = kseq_init(fp);
 
@@ -104,9 +106,11 @@ std::vector<kmer_t> ReadKMersSorted(std::string &path, int k, bool complements, 
                 currentLength = 0;
                 continue;
             }
+            kmer_t previousKMer = currentKMer;
             currentKMer = ((currentKMer << 2) | data) & mask;
             reverseComplement = (reverseComplement >> 2) | ((kmer_t(3 ^ data)) << shift);
             if (++currentLength < k) continue;
+            if (currentLength == k + 1 && sequence_starts) sequence_starts->push_back((previousKMer << 2) | kmer_t(data));
             kmer_t canonical = ((!complements) || currentKMer < reverseComplement) ? currentKMer : reverseComplement;
             size_t slot = (uint64_t(canonical) * 0x9E3779B97F4A7C15ULL) >> (64 - filter_bits);
             if (recently_seen[slot] == canonical) continue;
@@ -119,6 +123,11 @@ std::vector<kmer_t> ReadKMersSorted(std::string &path, int k, bool complements, 
     compact();
     kseq_destroy(seq);
     gzclose(fp);
+    if (sequence_starts){
+        ParallelSort<kmer_t>(sequence_starts->begin(), sequence_starts->end(), threads, 2 * k + 2);
+        sequence_starts->erase(std::unique(sequence_starts->begin(), sequence_starts->end()), sequence_starts->end());
+        sequence_starts->shrink_to_fit();
+    }
 
     std::vector<kmer_t> result;
     result.reserve(complements ? 2 * kMers.size() : kMers.size());
