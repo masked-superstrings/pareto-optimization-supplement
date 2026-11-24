@@ -1,7 +1,8 @@
 # Pareto optimization of masked superstrings
 
-Supplementary repository for paper
-[Pareto optimization of masked superstrings improves compression of pan-genome k-mer sets](https://www.biorxiv.org/content/10.64898/2026.03.18.712440).
+Supplementary repository for the paper
+[Pareto optimization of masked superstrings improves compression of pan-genome k-mer sets](https://doi.org/10.1177/15578666261491601),
+*Journal of Computational Biology*, 2026 ([preprint](https://doi.org/10.64898/2026.03.18.712440)).
 
 This repository contains the implementation of *Pareto optimization of masked superstrings for k-mer sets*
 and computation of *lower bound for the number of runs of ones in the mask* (lower bound for the number of matchtigs).
@@ -83,7 +84,22 @@ which resulted in a weird commit history for a while.
 Now it is settled like this:
 - the first commit contains the history of original KmerCamel🐫, which has been forked.
 - the relevant changes (Pareto optimization implementation) are in the second commit made by @Jajopi
-([d86ccf1a6b8007a6cb8680bb46f47a91ef058beb](https://github.com/Jajopi/ms-pareto-optimization-supplement/commit/d86ccf1a6b8007a6cb8680bb46f47a91ef058beb)).
+([d86ccf1a6b8007a6cb8680bb46f47a91ef058beb](https://github.com/masked-superstrings/pareto-optimization-supplement/commit/d86ccf1a6b8007a6cb8680bb46f47a91ef058beb)).
 
 The main concept (Pareto optimization) was internally called Joint optimization for a long time.
 All occurences in the files should be up to date; however, you may encounter the old name in the history.
+
+## Citation
+
+> Ján Plachý, Ondřej Sladký, Karel Břinda, and Pavel Veselý: Pareto optimization of masked superstrings improves compression of pan-genome *k*-mer sets.
+> *Journal of Computational Biology*, 2026. [doi:10.1177/15578666261491601](https://doi.org/10.1177/15578666261491601)
+
+```
+@article{Plachy2026pareto,
+  title = {{Pareto} optimization of masked superstrings improves compression of pan-genome $k$-mer sets},
+  author = {J{\'{a}}n Plach{\'{y}} and Ond{\v{r}}ej Sladk{\'{y}} and Karel B{\v{r}}inda and Pavel Vesel{\'{y}}},
+  journal = {Journal of Computational Biology},
+  year = {2026},
+  doi = {10.1177/15578666261491601}
+}
+```
